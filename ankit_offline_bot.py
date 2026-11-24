@@ -237,8 +237,17 @@ async def main():
     my_id = me.id
 
     if BOT_TOKEN:
-        await bot_client.start(bot_token=BOT_TOKEN)
-        print("Control bot bhi chalu ho gaya.")
+        for attempt in range(5):
+            try:
+                await bot_client.start(bot_token=BOT_TOKEN)
+                print("Control bot bhi chalu ho gaya.")
+                break
+            except Exception as e:
+                wait = 10 * (attempt + 1)
+                print(f"Control bot login fail hua ({e}), {wait}s baad retry karunga...")
+                await asyncio.sleep(wait)
+        else:
+            print("Control bot start nahi ho paya 5 koshish ke baad. BOT_TOKEN check karo.")
 
     print("Ankit offline auto-reply bot chal raha hai...")
     await asyncio.gather(
