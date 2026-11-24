@@ -35,6 +35,8 @@ API_ID = int(os.environ.get("API_ID", "0"))
 API_HASH = os.environ.get("API_HASH", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 SESSION_STRING = os.environ.get("SESSION_STRING", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")       # BotFather se mila token (control bot)
+OWNER_ID = int(os.environ.get("OWNER_ID", "0"))   # aapki Telegram user id (sirf aap control kar sako)
 OWNER_NAME = "Ankit"
 PORT = int(os.environ.get("PORT", "10000"))
 # ============================================================
@@ -47,6 +49,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+bot_client = TelegramClient("control_bot_session", API_ID, API_HASH)  # control bot (BOT_TOKEN se login)
 
 chat_state = {}  # chat_id -> {"active": bool, "last_bot_reply": float}
 last_manual_activity = time.time()
@@ -154,6 +157,20 @@ async def handle_command(event, text: str) -> bool:
     return True
 
 
+@bot_client.on(events.NewMessage(incoming=True))
+async def on_control_bot_message(event):
+    """Control bot (BotFather bot) ki DM se commands handle karta hai.
+    Sirf OWNER_ID wala insaan hi control kar sakta hai."""
+    if event.sender_id != OWNER_ID:
+        await event.reply("Ye bot sirf owner control kar sakta hai.")
+        return
+
+    text = (event.raw_text or "").strip()
+    was_command = await handle_command(event, text)
+    if not was_command:
+        await event.reply("Pehchana nahi. /help bhejo commands dekhne ke liye.")
+
+
 @client.on(events.NewMessage(outgoing=True))
 async def on_my_message(event):
     global last_manual_activity
@@ -218,8 +235,16 @@ async def main():
     await client.start()
     me = await client.get_me()
     my_id = me.id
+
+    if BOT_TOKEN:
+        await bot_client.start(bot_token=BOT_TOKEN)
+        print("Control bot bhi chalu ho gaya.")
+
     print("Ankit offline auto-reply bot chal raha hai...")
-    await client.run_until_disconnected()
+    await asyncio.gather(
+        client.run_until_disconnected(),
+        bot_client.run_until_disconnected() if BOT_TOKEN else asyncio.sleep(0),
+    )
 
 
 if __name__ == "__main__":
